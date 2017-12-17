@@ -1,0 +1,1 @@
+case class Bisector(nama: String,tipe: String, var m_value: BigDecimal, var b_value: BigDecimal, point1: String, point2: String)

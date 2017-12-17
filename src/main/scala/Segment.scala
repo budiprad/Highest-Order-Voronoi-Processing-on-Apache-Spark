@@ -1,0 +1,1 @@
+case class Segment(var nama: String, var X_awal: BigDecimal, var Y_awal: BigDecimal, var X_akhir: BigDecimal, var Y_akhir: BigDecimal, var bisector: String,var tipe: String, var usage:Int)
