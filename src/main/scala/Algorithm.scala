@@ -8,6 +8,14 @@ class Algorithm {
   var x_min, x_max, y_min, y_max = BigDecimal(123456.789)
   var adder10 = BigDecimal(5)
   val timesby = 1000
+  var number_of_cpus =0
+  var timespartition =1
+
+  val bufferTime = new ListBuffer[(String, Double)]()
+
+  def confRepartition(a :Int, b:Int) ={
+    number_of_cpus = a*b;
+  }
 
   Logger.getLogger("org").setLevel(Level.WARN)
   val spark = SparkSession.builder().master("local")
@@ -82,7 +90,6 @@ class Algorithm {
       val midPointX = (titikKedua.kordinatX+titikPertama.kordinatX)/2
       val midPointY = (titikKedua.kordinatY+titikPertama.kordinatY)/2
       val midPoint = Point("MidPoint"+titikPertama.nama+titikKedua.nama, midPointX,midPointY)
-
       //Find Slope m1
       val m1 = (titikKedua.kordinatY - titikPertama.kordinatY)/(titikKedua.kordinatX-titikPertama.kordinatX)
 
@@ -118,6 +125,8 @@ class Algorithm {
     bisBuffer += bisBoundY2
 
     val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Bisector", duration)
+    bufferTime += tupledur
     println("Durasi Perp Bisector : "+duration)
     println("===========================================================================================")
     return bisBuffer.toList
@@ -228,6 +237,8 @@ class Algorithm {
     }
 
     val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Vertex", duration)
+    bufferTime += tupledur
     println("durasi Vertex : "+duration+" banyak vertex : "+bisIntersectionBuffer.size)
     println("===========================================================================================")
     return bisIntersectionBuffer.toList
@@ -319,6 +330,8 @@ class Algorithm {
 
     }
     val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Segment", duration)
+    bufferTime += tupledur
     println("durasi cari segment : "+duration + "banyak segment : "+countSeg)
     println("===========================================================================================")
     return segmentFull.toList
@@ -341,7 +354,7 @@ class Algorithm {
     val segmentFull = new ListBuffer[Segment]()
     val regList = new ListBuffer[Region]()
     var segListBuffer = segList.to[ListBuffer]
-
+    val number_of_partitions = 30
 
 
     var isSisaSegment = false
@@ -354,7 +367,11 @@ class Algorithm {
       var segmentDF = bval.value.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","bisector","tipe","usage")
       var tempTable = segmentDF.createOrReplaceTempView("segment")
 
-      val dataSegmentStart = sqlContext.sql("select * from segment where tipe = 'BIS' and usage = 0").first()
+      val predataSegmentStart = sqlContext.sql("select * from segment where tipe = 'BIS' and usage = 0")
+//      println("Num of partition predataSegment : "+predataSegmentStart.rdd.getNumPartitions)
+      val dataSegmentrepart = predataSegmentStart.repartition(number_of_partitions)
+//      println("Num of REpartition predataSegment : "+dataSegmentrepart.rdd.getNumPartitions)
+      val dataSegmentStart = dataSegmentrepart.first()
 
       var X_begin = BigDecimal(dataSegmentStart.getDecimal(1))
       var Y_begin = BigDecimal(dataSegmentStart.getDecimal(2))
@@ -366,17 +383,17 @@ class Algorithm {
       val indexSegPemula = segListBuffer.indexOf(segmentStart)
 
       segListBuffer(indexSegPemula).usage=1
-//      println(indexSegPemula+"<--- Nomor index : Hasil setelah diubah --> "+segListBuffer(indexSegPemula))
 
       var regStart = Region("R"+regionCount, segmentStart.X_awal, segmentStart.Y_awal, segmentStart.X_akhir, segmentStart.Y_akhir, segmentStart.tipe,0)
       regList += regStart
 
       while(!(X_begin.equals(segmentStart.X_akhir) && Y_begin.equals(segmentStart.Y_akhir))){
         val getNextSegment = sqlContext.sql("select * from segment where X_awal="+segmentStart.X_akhir+" and Y_awal="+segmentStart.Y_akhir+" and bisector != '"+segmentStart.bisector+"' and usage < 1")
-        val getNextSegmentData = getNextSegment.coalesce(1).collect()
+//        println("Num of partition getNextSegment : "+getNextSegment.rdd.getNumPartitions)
+        val getNextSegmentrepart = getNextSegment.repartition(number_of_partitions)
+//        println("Num of REpartition getNextSegment : "+getNextSegmentrepart.rdd.getNumPartitions)
+        val getNextSegmentData = getNextSegmentrepart.collect()
         var sudut = 360.0
-        println(" CALON SEGMENT : R"+regionCount)
-        getNextSegment.show()
 
         var nextSegName, nextSegBis, nextSegTipe = ""
         var nextX_awal, nextY_awal, nextX_akhir, nextY_akhir = BigDecimal(0.0)
@@ -426,22 +443,16 @@ class Algorithm {
 
           val indexSeg1 = segListBuffer.indexOf(segPilihan)
           val indexSeg2 = segListBuffer.indexOf(segBoundSama)
-//
-//          println(indexSeg1+"<- indexSeg1 ada indexSeg2 ->"+indexSeg2)
 
           segListBuffer(indexSeg1).usage = 1
           segListBuffer(indexSeg2).usage = 1
-//          println("Hasil setelah diubah BND : "+segListBuffer(indexSeg1))
-//          println("Hasil setelah diubah BND : "+segListBuffer(indexSeg2))
+
 
         } else if (segPilihan.tipe == "BIS"){
           val indexSeg = segListBuffer.indexOf(segPilihan)
           segListBuffer(indexSeg).usage=1
-//          println(indexSeg+"<--- indexnya : Hasil setelah diubah : "+segListBuffer(indexSeg))
 
         }
-//        println("X BEGIN -- dan --- X AKHIR -->" + X_begin+" --- "+segmentStart.X_akhir)
-//        println("Y BEGIN -- dan --- Y AKHIR -->" + Y_begin+" --- "+segmentStart.Y_akhir)
 
 
       }
@@ -455,6 +466,8 @@ class Algorithm {
       regionCount+=1
     }
     val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Region", duration)
+    bufferTime += tupledur
     println("durasi region contructing : "+duration+" banyak region : "+regionCount)
     println("===========================================================================================")
     return regList.toList
@@ -464,6 +477,7 @@ class Algorithm {
   def labeling(regList : List[Region], segList : List[Segment], bisList : List[Bisector], pointList : List[Point]): List[Labelling2] ={
     //, bisList : List[Bisector]
     val t1 = System.nanoTime
+    val number_of_partitions = 30
     println("Start Labelling...")
 
     val labelListBuffer = new ListBuffer[Labelling2]()
@@ -488,7 +502,8 @@ class Algorithm {
 
     //CARI LABEL SALAH SATU REGION DENGAN CENTROID
     val preusingSQL = sqlContext.sql("select * from region where nama = 'R1'")
-    val dataRegionAwal = preusingSQL.coalesce(1).collect()
+//    val preusingSQLRepart = preusingSQL.repartition(number_of_partitions)
+    val dataRegionAwal = preusingSQL.collect()
 
     for(awalRegion <- dataRegionAwal){
       var regionya = Region(awalRegion.getString(0), awalRegion.getDecimal(1), awalRegion.getDecimal(2), awalRegion.getDecimal(3), awalRegion.getDecimal(4), awalRegion.getString(5), awalRegion.getInt(6))
@@ -525,8 +540,10 @@ class Algorithm {
         var tempTableLabel = labelDF.createOrReplaceTempView("labelling")
 
         //CARI LABEL DARI SEGMENT INI
-        val getLabelQuery = sqlContext.sql("select * from labelling where nama='"+prcSeg.nama+"'").coalesce(1).collect()
+        val getLabs = sqlContext.sql("select * from labelling where nama='"+prcSeg.nama+"'")
 
+        val getLabelQueryRepart = getLabs.repartition(number_of_partitions)
+        val getLabelQuery = getLabelQueryRepart.collect()
         import scala.collection.JavaConverters._
         val getPrevLabel = getLabelQuery(0).getList[String](1).asScala.toList
         //        val getPrevLabel = List("Point1","Point2","Point3","Point4")
@@ -536,8 +553,11 @@ class Algorithm {
 
 
         //DARI SEGMENT YANG DIAMBIL, DIDAPATLAH SALAH 1 SEGMENT (KEBALIKAN SEGMENT YANG DIATAS) DARI REGION BERIKUTNYA
-        val nextSegmentRAW= sqlContext.sql("select * from region where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
-          +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir).coalesce(1).collect()
+        val preNextSeg= sqlContext.sql("select * from region where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
+          +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir)
+        val preNextSegRepart = preNextSeg.repartition(number_of_partitions)
+        val nextSegmentRAW = preNextSegRepart.collect()
+
         val nextRegion = Region(nextSegmentRAW(0).getString(0), nextSegmentRAW(0).getDecimal(1),nextSegmentRAW(0).getDecimal(2),nextSegmentRAW(0).getDecimal(3),
           nextSegmentRAW(0).getDecimal(4), nextSegmentRAW(0).getString(5), nextSegmentRAW(0).getInt(6))
         val nextRegionName = nextRegion.nama
@@ -548,20 +568,27 @@ class Algorithm {
 
         val getInfoLabelnya = sqlContext.sql("select nama from labelling where nama = '"+nextRegionName+"'")
 
-        val checkRegion = getInfoLabelnya.coalesce(1).collect().isEmpty
+        val checkRegion = getInfoLabelnya.collect().isEmpty
 
         if(checkRegion){
           if(regionName.contains(nextRegionName) == false){
             regionName += nextRegionName
           }
           //SEKARANG CEK DIA ITU BISECTOR APA
-          val getbisectorInfo = sqlContext.sql("select bisector from segment where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
-            +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir).coalesce(1).collect()
+          val pregetbisectorInfo = sqlContext.sql("select bisector from segment where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
+            +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir)
+          val pregetbisectorInfoRepart = pregetbisectorInfo.repartition(number_of_partitions)
+          val getbisectorInfo = pregetbisectorInfoRepart.collect()
           val nextBisectorName = getbisectorInfo(0).getString(0)
 
 
           //QUERY KE TABEL BISECTOR BWT DAPET INFO POINTNYA
-          val getPointInfo = sqlContext.sql("select point1, point2 from bisector where nama='"+nextBisectorName+"'").coalesce(1).collect()
+          val pregetPointInfo = sqlContext.sql("select point1, point2 from bisector where nama='"+nextBisectorName+"'")
+          val pregetPointInfoRepart = pregetPointInfo.repartition(number_of_partitions)
+          val getPointInfo = pregetPointInfoRepart.collect()
+
+
+
           val thePoint1 = getPointInfo(0).getString(0)
           val thePoint2 = getPointInfo(0).getString(1)
 
@@ -582,8 +609,11 @@ class Algorithm {
       val tempTable = regionDF.createOrReplaceTempView("region")
 
       for(rg <- regionName){
-        val getCandRegion = sqlContext.sql("select * from region where nama='"+rg+"' and tipe = 'BIS' and usage = 0").coalesce(1)
-        for(anyReg <- getCandRegion.collect()){
+        val pregetCandRegion = sqlContext.sql("select * from region where nama='"+rg+"' and tipe = 'BIS' and usage = 0")
+        val pregetCandRegionRepart = pregetCandRegion.repartition(number_of_partitions)
+        val getCandRegion = pregetCandRegionRepart.collect()
+
+        for(anyReg <- getCandRegion){
           val candReg = Region(anyReg.getString(0), anyReg.getDecimal(1),anyReg.getDecimal(2),anyReg.getDecimal(3),
             anyReg.getDecimal(4), anyReg.getString(5), anyReg.getInt(6))
           processingRegion += candReg
@@ -599,6 +629,8 @@ class Algorithm {
     }
 
     val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Labelling", duration)
+    bufferTime += tupledur
     println("durasi labelling : "+duration)
     println("===========================================================================================")
 

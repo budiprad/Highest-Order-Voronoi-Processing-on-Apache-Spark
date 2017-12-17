@@ -23,9 +23,11 @@ object Main {
 
     val conf: SparkConf =
       new SparkConf()
-        .setMaster("local[2]")
+        .setMaster("local[*]")
         .setAppName("CalonTASvaha")
         .set("spark.driver.host", "localhost")
+        .set("spark.executor.instances","4")
+        .set("spark.executor.cores","4")
 
     val spark = SparkSession.builder().config(conf).config("spark.sql.warehouse.dir", "file:///c:/tmp/spark-warehouse").getOrCreate()
 
@@ -36,7 +38,7 @@ object Main {
 
     val sqlContext = spark.sqlContext
 
-    val dataset = spark.read.option("header",true).csv("Dataset8.txt")
+    val dataset = spark.read.option("header",true).csv("Dataset15.txt")
     dataset.show()
 
     //convert dataframe to array
@@ -51,6 +53,7 @@ object Main {
     }
     //convert pointListBuffer to list
     val algo = new Algorithm
+    algo.confRepartition(sc.getConf.get("spark.executor.instances").toInt, sc.getConf.get("spark.executor.cores").toInt)
     val preNormalizePoint = pointListBuffer.toList
     val pointList = algo.normalizePoints(preNormalizePoint)
 
@@ -91,5 +94,8 @@ object Main {
     import org.apache.spark.sql.functions.udf
     val stringify = udf((vs: Seq[String]) => s"""[${vs.mkString(",")}]""")
     writeTextLabelling.withColumn("label", stringify($"label")).write.option("header",true).mode("overwrite").csv("..\\Outputdata\\Label")
+
+    val durasiOut = algo.bufferTime.toDF()
+    durasiOut.coalesce(1).write.option("header",true).mode("overwrite").csv("..\\Outputdata\\Durasi")
   }
 }
