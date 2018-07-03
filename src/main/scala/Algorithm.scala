@@ -6,19 +6,17 @@ import scala.collection.mutable.ListBuffer
 
 class Algorithm {
   var x_min, x_max, y_min, y_max = BigDecimal(123456.789)
-  var adder10 = BigDecimal(5)
-  val timesby = 1000
-  var number_of_cpus =0
+  var adder10 = BigDecimal(10)
+  val timesby = 1
+
+  var number_of_cpus =32 //default 32
   var timespartition =1
 
   val bufferTime = new ListBuffer[(String, Double)]()
 
-  def confRepartition(a :Int, b:Int) ={
-    number_of_cpus = a*b;
-  }
 
   Logger.getLogger("org").setLevel(Level.WARN)
-  val spark = SparkSession.builder().master("local")
+  val spark = SparkSession.builder().master("local[*]")
     .appName("CalonTASvaha")
     .config("spark.sql.warehouse.dir", "file:///c:/tmp/spark-warehouse")
     .getOrCreate
@@ -30,12 +28,20 @@ class Algorithm {
   def assignMinMax(pointList : List[Point]) ={
     val sortedpointX = pointList.sortWith(_.kordinatX > _.kordinatX)
     val sortedpointY = pointList.sortWith(_.kordinatY > _.kordinatY)
+    println("minX dan minY real : "+sortedpointX.last.kordinatX+" "+sortedpointY.last.kordinatY)
 
 
-    x_max = (sortedpointX.head.kordinatX+adder10)*timesby
-    x_min = (sortedpointX.last.kordinatX-adder10)*timesby
-    y_max = (sortedpointY.head.kordinatY+adder10)*timesby
-    y_min = (sortedpointY.last.kordinatY-adder10)*timesby
+    x_max = (sortedpointX.head.kordinatX+adder10)
+    x_min = (sortedpointX.last.kordinatX-adder10)
+    y_max = (sortedpointY.head.kordinatY+adder10)
+    y_min = (sortedpointY.last.kordinatY-adder10)
+  }
+
+  def assignMinMaxNew()={
+    x_max = 1000
+    x_min = 1
+    y_max = 1000
+    y_min = 1
   }
 
   def factorial(n: Int): BigInt = {
@@ -86,27 +92,52 @@ class Algorithm {
       val titikPertama = pointList(pointer1)
       val titikKedua = pointList(pointer2)
 
-      //Calculate Mid Point
-      val midPointX = (titikKedua.kordinatX+titikPertama.kordinatX)/2
-      val midPointY = (titikKedua.kordinatY+titikPertama.kordinatY)/2
-      val midPoint = Point("MidPoint"+titikPertama.nama+titikKedua.nama, midPointX,midPointY)
-      //Find Slope m1
-      val m1 = (titikKedua.kordinatY - titikPertama.kordinatY)/(titikKedua.kordinatX-titikPertama.kordinatX)
+      if(titikPertama.kordinatX.equals(titikKedua.kordinatX)){
+        //Calculate Mid Point
+        val midPointX = (titikKedua.kordinatX+titikPertama.kordinatX)/2
+        val midPointY = (titikKedua.kordinatY+titikPertama.kordinatY)/2
 
-      //Find Slope m2
-      val m2 = -1/m1
-//      val m2xp = (-1*(m2*midPoint.kordinatX))
+        //pake y-nya biar y=...
+        var bisectornya = Bisector("Bis_"+(i+1),"BIS", 0, midPointY, titikPertama.nama, titikKedua.nama)
+        bisBuffer += bisectornya
+        pointer2 += 1
 
-      //Find b on y=mx+b
-      val bVal = (midPoint.kordinatY - (m2*midPoint.kordinatX))
+      }else if(titikPertama.kordinatY.equals(titikKedua.kordinatY)){
+        //Calculate Mid Point
+        val midPointX = (titikKedua.kordinatX+titikPertama.kordinatX)/2
+        val midPointY = (titikKedua.kordinatY+titikPertama.kordinatY)/2
 
-//      println(titikPertama.nama+ " - "+titikKedua.nama
-//        + " MidPoint : "+midPoint.nama+"("+midPoint.kordinatX+","+midPoint.kordinatY+")"
-//        + " --- Slope : "+m2+" |||||-   Perpendicular Bisector : y = "+m2+"x + ("+bVal+")")
-      pointer2 += 1
+        //pake y-nya biar y=...
+        var bisectornya = Bisector("Bis_"+(i+1),"BIS", 1, midPointX, titikPertama.nama, titikKedua.nama)
+        bisBuffer += bisectornya
 
-      var bisectornya = Bisector("Bis_"+(i+1),"BIS", m2, bVal, titikPertama.nama, titikKedua.nama)
-      bisBuffer += bisectornya
+        pointer2 += 1
+
+      }else {
+        //Calculate Mid Point
+        val midPointX = (titikKedua.kordinatX+titikPertama.kordinatX)/2
+        val midPointY = (titikKedua.kordinatY+titikPertama.kordinatY)/2
+        val midPoint = Point("MidPoint"+titikPertama.nama+titikKedua.nama, midPointX,midPointY)
+        //Find Slope m1
+        val m1 = (titikKedua.kordinatY - titikPertama.kordinatY)/(titikKedua.kordinatX-titikPertama.kordinatX)
+
+        //Find Slope m2
+        val m2 = -1/m1
+        //      val m2xp = (-1*(m2*midPoint.kordinatX))
+
+        //Find b on y=mx+b
+        val bVal = (midPoint.kordinatY - (m2*midPoint.kordinatX))
+
+        //      println(titikPertama.nama+ " - "+titikKedua.nama
+        //        + " MidPoint : "+midPoint.nama+"("+midPoint.kordinatX+","+midPoint.kordinatY+")"
+        //        + " --- Slope : "+m2+" |||||-   Perpendicular Bisector : y = "+m2+"x + ("+bVal+")")
+        pointer2 += 1
+
+        var bisectornya = Bisector("Bis_"+(i+1),"BIS", m2, bVal, titikPertama.nama, titikKedua.nama)
+        bisBuffer += bisectornya
+
+      }
+
     }
     println(" ")
 
@@ -135,7 +166,7 @@ class Algorithm {
 
   //Calculate Intersection
   // JANGAN PAKE FOR LOOP, PAKE WHILE AJA
-  //BERARTI DI BISECTORNYA TAMBAHIN STATUS
+//  BERARTI DI BISECTORNYA TAMBAHIN STATUS
   def bisectorIntersection(bisectorList : List[Bisector]): List[Vertex] = {
     val t1 = System.nanoTime
 
@@ -177,55 +208,193 @@ class Algorithm {
 
         //IF BIS INTERSECT WITH BIS
       } else if(bisectorPertama.tipe.equals("BIS") && bisectorKedua.tipe.equals("BIS")){
-        //Calculate intersection X,Y
-        val intersect_x = ((bisectorKedua.b_value-bisectorPertama.b_value) / (bisectorPertama.m_value-bisectorKedua.m_value))
-        val intersect_y = (bisectorKedua.m_value*intersect_x)+bisectorKedua.b_value
 
-        if(intersect_x <= x_max && intersect_x >= x_min){
-          if(intersect_y <= y_max && intersect_y >= y_min){
-            var intersectPoint = Vertex("Vertex_"+i, intersect_x, intersect_y, bisectorPertama.nama, bisectorKedua.nama)
-            bisIntersectionBuffer += intersectPoint
+        //IF BIS INTERSECT WITH BIS THAT HAVE MVAL 0/1
+        if(bisectorPertama.m_value.equals(0)) {
+          //berarti bisector pertama y=...
+
+          if(bisectorKedua.m_value.equals(1)){
+            if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min) {
+              if (bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_" + i, bisectorKedua.b_value, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                bisIntersectionBuffer += intersectPoint
+              }
+            }
+          } else if(!bisectorKedua.m_value.equals(0) && !bisectorKedua.m_value.equals(1)){
+
+            var vertexX = (bisectorPertama.b_value - bisectorKedua.b_value) / bisectorKedua.m_value
+
+            if(vertexX <= x_max && vertexX >= x_min) {
+              if (bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_" + i, vertexX, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                bisIntersectionBuffer += intersectPoint
+              }
+            }
           }
-        }
 
-      } else {
-        //IF BIS INTERSECT WITH BOUND
-        if(bisectorPertama.tipe.equals("BND")){
-          if(bisectorPertama.m_value.equals(0)){ //Y=...
-            var vertexX = (bisectorPertama.b_value-bisectorKedua.b_value)/bisectorKedua.m_value
-            if(vertexX <= x_max && vertexX >= x_min){
-              if(bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min){
-                var intersectPoint = Vertex("Vertex_"+i, vertexX, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+        } else if(bisectorKedua.m_value.equals(0)){
+          //berarti bisector kedua y=...
+
+          if(bisectorPertama.m_value.equals(1)){
+            if(bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min) {
+              if (bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_" + i, bisectorPertama.b_value, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                bisIntersectionBuffer += intersectPoint
+              }
+            }
+          } else if(!bisectorPertama.m_value.equals(0) && !bisectorPertama.m_value.equals(1)){
+            var vertexX = (bisectorKedua.b_value - bisectorPertama.b_value) / bisectorPertama.m_value
+
+            if(vertexX <= x_max && vertexX >= x_min) {
+              if (bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_" + i, vertexX, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                bisIntersectionBuffer += intersectPoint
+              }
+            }
+          }
+
+
+        }else if(bisectorPertama.m_value.equals(1)){
+          //berarti bisector pertama x=...
+
+          if(bisectorKedua.m_value.equals(0)){
+            if(bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min) {
+              if (bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_" + i, bisectorPertama.b_value, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
                 bisIntersectionBuffer += intersectPoint
               }
             }
 
-          } else { //X = ...
+          } else if(!bisectorKedua.m_value.equals(0) && !bisectorKedua.m_value.equals(1)){
             var vertexY = (bisectorPertama.b_value*bisectorKedua.m_value)+bisectorKedua.b_value
-            if(bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min){
-              if(vertexY <= y_max && vertexY >= y_min){
+
+            if(bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min) {
+              if (vertexY <= y_max && vertexY >= y_min) {
                 var intersectPoint = Vertex("Vertex_"+i, bisectorPertama.b_value, vertexY, bisectorPertama.nama, bisectorKedua.nama)
                 bisIntersectionBuffer += intersectPoint
               }
             }
           }
 
-        } else if(bisectorKedua.tipe.equals("BND")){
-          if(bisectorKedua.m_value.equals(0)){ //Y=...
-            var vertexX = (bisectorKedua.b_value-bisectorPertama.b_value)/bisectorPertama.m_value
+        } else if(bisectorKedua.m_value.equals(1)){
+          //berarti bisector kedua x=...
 
-            if(vertexX <= x_max && vertexX >= x_min){
-              if(bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min){
-                var intersectPoint = Vertex("Vertex_"+i, vertexX, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+          if(bisectorPertama.m_value.equals(0)){
+            if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min) {
+              if (bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min) {
+                var intersectPoint = Vertex("Vertex_"+i, bisectorKedua.b_value, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
                 bisIntersectionBuffer += intersectPoint
               }
             }
-          } else { //X = ...
+
+
+          } else if(!bisectorPertama.m_value.equals(0) && !bisectorPertama.m_value.equals(1)){
             var vertexY = (bisectorKedua.b_value*bisectorPertama.m_value)+bisectorPertama.b_value
-            if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min){
-              if(vertexY <= y_max && vertexY >= y_min){
+
+            if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min) {
+              if (vertexY <= y_max && vertexY >= y_min) {
                 var intersectPoint = Vertex("Vertex_"+i, bisectorKedua.b_value, vertexY, bisectorPertama.nama, bisectorKedua.nama)
                 bisIntersectionBuffer += intersectPoint
+              }
+            }
+          }
+
+
+        } else {
+          //Calculate intersection X,Y
+          val intersect_x = ((bisectorKedua.b_value-bisectorPertama.b_value) / (bisectorPertama.m_value-bisectorKedua.m_value))
+          val intersect_y = (bisectorKedua.m_value*intersect_x)+bisectorKedua.b_value
+
+          if(intersect_x <= x_max && intersect_x >= x_min){
+            if(intersect_y <= y_max && intersect_y >= y_min){
+              var intersectPoint = Vertex("Vertex_"+i, intersect_x, intersect_y, bisectorPertama.nama, bisectorKedua.nama)
+              bisIntersectionBuffer += intersectPoint
+            }
+          }
+        }
+
+
+      } else {
+
+        //IF BIS INTERSECT WITH BOUND
+        if(bisectorPertama.tipe.equals("BND")){
+          if(bisectorPertama.m_value.equals(0)){ //Y=...
+            if(bisectorKedua.m_value.equals(1)){
+              if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min){
+                if(bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min){
+                  var intersectPoint = Vertex("Vertex_"+i, bisectorKedua.b_value, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+
+            }else if(!bisectorKedua.m_value.equals(0) && !bisectorKedua.m_value.equals(1)){
+              var vertexX = (bisectorPertama.b_value-bisectorKedua.b_value)/bisectorKedua.m_value
+              if(vertexX <= x_max && vertexX >= x_min){
+                if(bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min){
+                  var intersectPoint = Vertex("Vertex_"+i, vertexX, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+            }
+
+
+
+
+          } else if (bisectorPertama.m_value.equals(1)) { //X = ...
+            if(bisectorKedua.m_value.equals(0)) {
+              if (bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min) {
+                if (bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min) {
+                  var intersectPoint = Vertex("Vertex_" + i, bisectorPertama.b_value, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+            }else if(!bisectorKedua.m_value.equals(0) && !bisectorKedua.m_value.equals(1)){
+              var vertexY = (bisectorPertama.b_value*bisectorKedua.m_value)+bisectorKedua.b_value
+              if(bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min){
+                if(vertexY <= y_max && vertexY >= y_min){
+                  var intersectPoint = Vertex("Vertex_"+i, bisectorPertama.b_value, vertexY, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+            }
+          }
+
+        } else if(bisectorKedua.tipe.equals("BND")){
+          if(bisectorKedua.m_value.equals(0)){ //Y=...
+            if(bisectorPertama.m_value.equals(1)){
+              if (bisectorPertama.b_value <= x_max && bisectorPertama.b_value >= x_min) {
+                if (bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min) {
+                  var intersectPoint = Vertex("Vertex_" + i, bisectorPertama.b_value, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+
+            } else if(!bisectorPertama.m_value.equals(0) && !bisectorPertama.m_value.equals(1)){
+              var vertexX = (bisectorKedua.b_value-bisectorPertama.b_value)/bisectorPertama.m_value
+              if(vertexX <= x_max && vertexX >= x_min){
+                if(bisectorKedua.b_value <= y_max && bisectorKedua.b_value >= y_min){
+                  var intersectPoint = Vertex("Vertex_"+i, vertexX, bisectorKedua.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+            }
+
+          } else if(bisectorKedua.m_value.equals(1)) { //X = ...
+            if(bisectorPertama.m_value.equals(0)) {
+              if (bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min) {
+                if (bisectorPertama.b_value <= y_max && bisectorPertama.b_value >= y_min) {
+                  var intersectPoint = Vertex("Vertex_" + i, bisectorKedua.b_value, bisectorPertama.b_value, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
+              }
+
+            } else if(!bisectorPertama.m_value.equals(0) && !bisectorPertama.m_value.equals(1)){
+              var vertexY = (bisectorKedua.b_value*bisectorPertama.m_value)+bisectorPertama.b_value
+              if(bisectorKedua.b_value <= x_max && bisectorKedua.b_value >= x_min){
+                if(vertexY <= y_max && vertexY >= y_min){
+                  var intersectPoint = Vertex("Vertex_"+i, bisectorKedua.b_value, vertexY, bisectorPertama.nama, bisectorKedua.nama)
+                  bisIntersectionBuffer += intersectPoint
+                }
               }
             }
           }
@@ -245,36 +414,13 @@ class Algorithm {
   }
 
 
-//  def findVertex(bisectorList : List[Bisector]) : List[Vertex] = {
-//    val bisLength = bisectorList.length
-//    var countStatus = 1
-//
-//    //pointer for element in list that will be calculated
-//    var pointer1=0
-//    var pointer2 =1
-//
-//
-//    while(countStatus <= bisLength){
-//
-//      if(pointer2 == bisectorList.length){
-//        pointer1+=1
-//        pointer2 = pointer1+1
-//      }
-//
-//      //Get 2 Point
-//      val bisectorPertama = bisectorList(pointer1)
-//      val bisectorKedua = bisectorList(pointer2)
-//
-//      countStatus += 1
-//    }
-//
-//  }
-
   def segmentForming(bisectorList : List[Bisector], vertexList : List[Vertex]): List[Segment] ={
     val t1 = System.nanoTime
 //
 //    val vertexFull = spark.read.option("header",true).option("inferSchema", "true").csv("..\\Outputdata\\Vertex")
 //    val tempTable = vertexFull.createOrReplaceTempView("vertex")
+
+
 
     import spark.sqlContext.implicits._
     var vertexFull = vertexList.toDF("nama","kordinatX","kordinatY","bisector1","bisector2").cache()
@@ -284,24 +430,25 @@ class Algorithm {
     val banyakLoopBis = bisectorList.size
     var countSeg = 1
     println("Banyak loopbis : "+banyakLoopBis)
+
     for (i <- 0 to banyakLoopBis-1) {
       val bisector = bisectorList(i)
       println(bisector.nama+"...")
 
       if(bisector.m_value == 1){
+//        println(bisector.nama+"masuk yang m_value == 1 SortbyY")
         val t2 = System.nanoTime
         val preusingSQL = sqlContext.sql("select * from vertex where bisector1 = '"+bisector.nama+"' or bisector2 = '"+bisector.nama+"' order by kordinatY ASC")
         val arrCol = Array("kordinatX", "kordinatY")
         val usingSQL = preusingSQL.dropDuplicates(arrCol)
-
         val vvv = usingSQL.as[Vertex].collect().to[ListBuffer]
         for(vi <- 0  to vvv.length-1){
           val va = vi+1
           if(va < vvv.length){
             val segmentnya = Segment("Seg_"+countSeg,vvv(vi).kordinatX,vvv(vi).kordinatY, vvv(va).kordinatX, vvv(va).kordinatY, bisector.nama, bisector.tipe,0)
+            segmentFull += segmentnya
             countSeg += 1
             val segmentnya2 = Segment("Seg_"+countSeg,vvv(va).kordinatX,vvv(va).kordinatY, vvv(vi).kordinatX, vvv(vi).kordinatY, bisector.nama, bisector.tipe,0)
-            segmentFull += segmentnya
             segmentFull += segmentnya2
             countSeg += 1
           }
@@ -334,6 +481,7 @@ class Algorithm {
     bufferTime += tupledur
     println("durasi cari segment : "+duration + "banyak segment : "+countSeg)
     println("===========================================================================================")
+    sqlContext.uncacheTable("vertex")
     return segmentFull.toList
   }
 
@@ -354,7 +502,7 @@ class Algorithm {
     val segmentFull = new ListBuffer[Segment]()
     val regList = new ListBuffer[Region]()
     var segListBuffer = segList.to[ListBuffer]
-    val number_of_partitions = 30
+    val number_of_partitions = number_of_cpus
 
 
     var isSisaSegment = false
@@ -363,36 +511,44 @@ class Algorithm {
       println("Processing - R"+regionCount)
 
       import spark.sqlContext.implicits._
-      val bval = spark.sparkContext.broadcast(segListBuffer)
-      var segmentDF = bval.value.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","bisector","tipe","usage")
+      var segmentDF = segListBuffer.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","bisector","tipe","usage")
       var tempTable = segmentDF.createOrReplaceTempView("segment")
 
-      val predataSegmentStart = sqlContext.sql("select * from segment where tipe = 'BIS' and usage = 0")
-//      println("Num of partition predataSegment : "+predataSegmentStart.rdd.getNumPartitions)
-      val dataSegmentrepart = predataSegmentStart.repartition(number_of_partitions)
-//      println("Num of REpartition predataSegment : "+dataSegmentrepart.rdd.getNumPartitions)
-      val dataSegmentStart = dataSegmentrepart.first()
+      val predataSegmentStart = sqlContext.sql("select * from segment where tipe = 'BIS' and usage = 0 LIMIT 1")
+      val dataSegmentStart = predataSegmentStart.as[Segment].take(1).to[ListBuffer]
 
-      var X_begin = BigDecimal(dataSegmentStart.getDecimal(1))
-      var Y_begin = BigDecimal(dataSegmentStart.getDecimal(2))
+      var X_begin = dataSegmentStart(0).X_awal
+      var Y_begin = dataSegmentStart(0).Y_awal
 
-      var segmentStart = Segment(dataSegmentStart.getString(0), dataSegmentStart.getDecimal(1), dataSegmentStart.getDecimal(2)
-        , dataSegmentStart.getDecimal(3), dataSegmentStart.getDecimal(4), dataSegmentStart.getString(5), dataSegmentStart.getString(6), dataSegmentStart.getInt(7))
-//      println("Segment yang diproses selanjutnya:::: "+segmentStart)
-
+//      var segmentStart = Segment(dataSegmentStart.getString(0), dataSegmentStart.getDecimal(1), dataSegmentStart.getDecimal(2)
+//        , dataSegmentStart.getDecimal(3), dataSegmentStart.getDecimal(4), dataSegmentStart.getString(5), dataSegmentStart.getString(6), dataSegmentStart.getInt(7))
+//
+      var segmentStart = dataSegmentStart(0)
       val indexSegPemula = segListBuffer.indexOf(segmentStart)
 
-      segListBuffer(indexSegPemula).usage=1
+      segListBuffer.remove(indexSegPemula)
+
+//      segListBuffer(indexSegPemula).usage=1
 
       var regStart = Region("R"+regionCount, segmentStart.X_awal, segmentStart.Y_awal, segmentStart.X_akhir, segmentStart.Y_akhir, segmentStart.tipe,0)
       regList += regStart
 
       while(!(X_begin.equals(segmentStart.X_akhir) && Y_begin.equals(segmentStart.Y_akhir))){
+
+//        val getNextSegment = segmentDF.select("*").where($"X_awal" === segmentStart.X_akhir).where($"Y_awal" === segmentStart.Y_akhir).where($"bisector" === segmentStart.bisector).filter($"usage" < 1)
         val getNextSegment = sqlContext.sql("select * from segment where X_awal="+segmentStart.X_akhir+" and Y_awal="+segmentStart.Y_akhir+" and bisector != '"+segmentStart.bisector+"' and usage < 1")
 //        println("Num of partition getNextSegment : "+getNextSegment.rdd.getNumPartitions)
         val getNextSegmentrepart = getNextSegment.repartition(number_of_partitions)
-//        println("Num of REpartition getNextSegment : "+getNextSegmentrepart.rdd.getNumPartitions)
-        val getNextSegmentData = getNextSegmentrepart.collect()
+        //NAMPILIN BANYAK ISI PER PARTITION
+//        println("=================================")
+//        getNextSegmentrepart.show()
+//        val l = getNextSegmentrepart.rdd.glom().map(_.length).collect()
+//        for(ii<-l){
+//          println(ii)
+//        }
+//        println("=================================")
+        //        println("Num of REpartition getNextSegment : "+getNextSegmentrepart.rdd.getNumPartitions)
+        val getNextSegmentData = getNextSegmentrepart.as[Segment].collect().to[ListBuffer]
         var sudut = 360.0
 
         var nextSegName, nextSegBis, nextSegTipe = ""
@@ -400,38 +556,35 @@ class Algorithm {
         var nextUsage = 0
 
         for(dataNextSegment <- getNextSegmentData){
-          val segTarget = Segment(dataNextSegment.getString(0),dataNextSegment.getDecimal(1),dataNextSegment.getDecimal(2),dataNextSegment.getDecimal(3),dataNextSegment.getDecimal(4),dataNextSegment.getString(5),dataNextSegment.getString(6),dataNextSegment.getInt(7))
+          val segTarget = dataNextSegment
           var curr_sudut = getAngle(segmentStart,segTarget)
 //          println(segmentStart.nama+" dengan "+ dataNextSegment.getString(0)+" sudutnya : "+(curr_sudut))
           if(curr_sudut <= sudut){
             sudut = curr_sudut
-            nextSegName = dataNextSegment.getString(0)
-            nextX_awal = dataNextSegment.getDecimal(1)
-            nextY_awal = dataNextSegment.getDecimal(2)
-            nextX_akhir = dataNextSegment.getDecimal(3)
-            nextY_akhir = dataNextSegment.getDecimal(4)
-            nextSegBis = dataNextSegment.getString(5)
-            nextSegTipe = dataNextSegment.getString(6)
-            nextUsage = dataNextSegment.getInt(7)
+            nextSegName = dataNextSegment.nama
+            nextX_awal = dataNextSegment.X_awal
+            nextY_awal = dataNextSegment.Y_awal
+            nextX_akhir = dataNextSegment.X_akhir
+            nextY_akhir = dataNextSegment.Y_akhir
+            nextSegBis = dataNextSegment.bisector
+            nextSegTipe  = dataNextSegment.tipe
+            nextUsage  = dataNextSegment.usage
           }
         }
-//        println("Yang dipilih : "+nextSegName)
-        segmentStart.nama = nextSegName
-        segmentStart.X_awal = nextX_awal
-        segmentStart.Y_awal = nextY_awal
-        segmentStart.X_akhir = nextX_akhir
-        segmentStart.Y_akhir = nextY_akhir
-        segmentStart.bisector = nextSegBis
-        segmentStart.tipe = nextSegTipe
-        segmentStart.usage = nextUsage
+         segmentStart.nama = nextSegName
+         segmentStart.X_awal = nextX_awal
+         segmentStart.Y_awal = nextY_awal
+         segmentStart.X_akhir = nextX_akhir
+         segmentStart.Y_akhir = nextY_akhir
+         segmentStart.bisector= nextSegBis
+         segmentStart.tipe = nextSegTipe
+         segmentStart.usage = nextUsage
 
         var xTest = segmentStart.X_akhir
         var yTest = segmentStart.Y_akhir
 
-        val segPilihan = Segment(segmentStart.nama,segmentStart.X_awal,segmentStart.Y_awal,
-          segmentStart.X_akhir,segmentStart.Y_akhir,segmentStart.bisector,
-          segmentStart.tipe,segmentStart.usage)
-
+        val segPilihan = segmentStart
+//        println(segPilihan)
         var regNext1 = Region("R"+regionCount, segPilihan.X_awal, segPilihan.Y_awal, segPilihan.X_akhir, segPilihan.Y_akhir, segPilihan.tipe, 0)
         regList += regNext1
 
@@ -442,15 +595,19 @@ class Algorithm {
             getSameSeg(0).tipe,getSameSeg(0).usage)
 
           val indexSeg1 = segListBuffer.indexOf(segPilihan)
-          val indexSeg2 = segListBuffer.indexOf(segBoundSama)
+          segListBuffer.remove(indexSeg1)
 
-          segListBuffer(indexSeg1).usage = 1
-          segListBuffer(indexSeg2).usage = 1
+          val indexSeg2 = segListBuffer.indexOf(segBoundSama)
+          segListBuffer.remove(indexSeg2)
+
+//          segListBuffer(indexSeg1).usage = 1
+//          segListBuffer(indexSeg2).usage = 1
 
 
         } else if (segPilihan.tipe == "BIS"){
           val indexSeg = segListBuffer.indexOf(segPilihan)
-          segListBuffer(indexSeg).usage=1
+          segListBuffer.remove(indexSeg)
+//          segListBuffer(indexSeg).usage=1
 
         }
 
@@ -458,6 +615,7 @@ class Algorithm {
       }
 
       val segmentValidate = segListBuffer.filter(x=> x.usage < 1).filter(x=>x.tipe == "BIS").take(1)
+//      val segmentValidate = sqlContext.sql("select * from segment where tipe = 'BIS' and usage = 0").collect()
       if(segmentValidate.isEmpty){
         isSisaSegment = true
       }
@@ -468,16 +626,47 @@ class Algorithm {
     val duration = (System.nanoTime - t1) / 1e9d
     val tupledur = ("Region", duration)
     bufferTime += tupledur
-    println("durasi region contructing : "+duration+" banyak region : "+regionCount)
+    println("durasi region contructing : "+duration+" banyak region : "+(regionCount-1))
     println("===========================================================================================")
     return regList.toList
+  }
+
+  def labellingAlternative(regList : List[Region], pointList : List[Point]): List[Labelling2] ={
+    val t1 = System.nanoTime
+    val labelListBuffer = new ListBuffer[Labelling2]()
+    val number_of_partitions = number_of_cpus
+    import spark.sqlContext.implicits._
+    val regionDF = regList.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","tipe", "usage").cache()
+    val tempTable = regionDF.createOrReplaceTempView("region")
+
+    val selectRname = sqlContext.sql("select DISTINCT nama from region")
+    val listRname = selectRname.as[String].collect().to[ListBuffer]
+
+    println("Start Labelling...")
+    for(rrName <- listRname){
+      println("Processing "+rrName)
+      val preselectReg = sqlContext.sql("select * from region where nama = '"+rrName+"'")
+      val selectReg = preselectReg.repartition(number_of_partitions)
+      val listSegment = selectReg.as[Region].collect().to[ListBuffer]
+      val centroid = calculateCentroid(listSegment.toList)
+      val labels = getLabel(centroid, pointList)
+      labelListBuffer += labels
+    }
+    val duration = (System.nanoTime - t1) / 1e9d
+    val tupledur = ("Labelling", duration)
+    bufferTime += tupledur
+    println("durasi labelling : "+duration)
+    println("===========================================================================================")
+
+    sqlContext.uncacheTable("region")
+    return labelListBuffer.toList
   }
 
 
   def labeling(regList : List[Region], segList : List[Segment], bisList : List[Bisector], pointList : List[Point]): List[Labelling2] ={
     //, bisList : List[Bisector]
     val t1 = System.nanoTime
-    val number_of_partitions = 30
+    val number_of_partitions = number_of_cpus
     println("Start Labelling...")
 
     val labelListBuffer = new ListBuffer[Labelling2]()
@@ -492,28 +681,29 @@ class Algorithm {
     val tempTable = regionDF.createOrReplaceTempView("region")
 
     //TABEL SEGMENT
-    val segmentDF = segList.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","bisector","tipe", "usage")
+    val segmentDF = segList.toDF("nama","X_awal","Y_awal","X_akhir","Y_akhir","bisector","tipe", "usage").cache()
     val tempTableSegment = segmentDF.createOrReplaceTempView("segment")
 
     //TABEL BISECTOR
-    val bisectorDF = bisList.toDF("nama","tipe","m_value","b_value","point1","point2")
+    val bisectorDF = bisList.toDF("nama","tipe","m_value","b_value","point1","point2").cache()
     val tempTableBisector = bisectorDF.createOrReplaceTempView("bisector")
 
 
     //CARI LABEL SALAH SATU REGION DENGAN CENTROID
     val preusingSQL = sqlContext.sql("select * from region where nama = 'R1'")
 //    val preusingSQLRepart = preusingSQL.repartition(number_of_partitions)
-    val dataRegionAwal = preusingSQL.collect()
+    val dataRegionAwal = preusingSQL.as[Region].collect().to[ListBuffer]
 
     for(awalRegion <- dataRegionAwal){
-      var regionya = Region(awalRegion.getString(0), awalRegion.getDecimal(1), awalRegion.getDecimal(2), awalRegion.getDecimal(3), awalRegion.getDecimal(4), awalRegion.getString(5), awalRegion.getInt(6))
-      var indexReg = regListBuffer.indexOf(regionya)
-      if(regionya.tipe.equals("BIS")){
-        regionya.usage = 0
-      } else if(regionya.tipe.equals("BND")){
-        regionya.usage = 1
+      var indexReg = regListBuffer.indexOf(awalRegion)
+      if(awalRegion.tipe.equals("BIS")) {
+        awalRegion.usage = 0
+        beginRegion += awalRegion
       }
-      beginRegion += regionya
+//      } else if(awalRegion.tipe.equals("BND")){
+//        awalRegion.usage = 1
+//      }
+
     }
 
     val firstCentroid = calculateCentroid(beginRegion.toList)
@@ -542,12 +732,14 @@ class Algorithm {
         //CARI LABEL DARI SEGMENT INI
         val getLabs = sqlContext.sql("select * from labelling where nama='"+prcSeg.nama+"'")
 
-        val getLabelQueryRepart = getLabs.repartition(number_of_partitions)
+        val getLabelQueryRepart = getLabs
         val getLabelQuery = getLabelQueryRepart.collect()
         import scala.collection.JavaConverters._
         val getPrevLabel = getLabelQuery(0).getList[String](1).asScala.toList
-        //        val getPrevLabel = List("Point1","Point2","Point3","Point4")
+
+//        val getPrevLabel = List("Point1","Point2","Point3","Point4")
         //ubah status segment regionya
+//        println("pcrSeg : "+prcSeg)
         val idx1 = regListBuffer.indexOf(prcSeg)
         regListBuffer(idx1).usage = 1
 
@@ -556,18 +748,17 @@ class Algorithm {
         val preNextSeg= sqlContext.sql("select * from region where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
           +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir)
         val preNextSegRepart = preNextSeg.repartition(number_of_partitions)
-        val nextSegmentRAW = preNextSegRepart.collect()
+        val nextSegmentRAW = preNextSegRepart.as[Region].collect().to[ListBuffer]
 
-        val nextRegion = Region(nextSegmentRAW(0).getString(0), nextSegmentRAW(0).getDecimal(1),nextSegmentRAW(0).getDecimal(2),nextSegmentRAW(0).getDecimal(3),
-          nextSegmentRAW(0).getDecimal(4), nextSegmentRAW(0).getString(5), nextSegmentRAW(0).getInt(6))
-        val nextRegionName = nextRegion.nama
+//        val nextRegion = Region(nextSegmentRAW(0).getString(0), nextSegmentRAW(0).getDecimal(1),nextSegmentRAW(0).getDecimal(2),nextSegmentRAW(0).getDecimal(3),
+//          nextSegmentRAW(0).getDecimal(4), nextSegmentRAW(0).getString(5), nextSegmentRAW(0).getInt(6))
+        val nextRegionName = nextSegmentRAW(0).nama
         //ubah status segment regionya berikutnya
-        val idx2 = regListBuffer.indexOf(nextRegion)
+        val idx2 = regListBuffer.indexOf(nextSegmentRAW(0))
         regListBuffer(idx2).usage = 1
 
 
         val getInfoLabelnya = sqlContext.sql("select nama from labelling where nama = '"+nextRegionName+"'")
-
         val checkRegion = getInfoLabelnya.collect().isEmpty
 
         if(checkRegion){
@@ -575,22 +766,22 @@ class Algorithm {
             regionName += nextRegionName
           }
           //SEKARANG CEK DIA ITU BISECTOR APA
-          val pregetbisectorInfo = sqlContext.sql("select bisector from segment where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
+          val pregetbisectorInfo = sqlContext.sql("select * from segment where X_akhir = "+prcSeg.X_awal+" and Y_akhir = "
             +prcSeg.Y_awal+" and X_awal = "+prcSeg.X_akhir+" and Y_awal = "+prcSeg.Y_akhir)
-          val pregetbisectorInfoRepart = pregetbisectorInfo.repartition(number_of_partitions)
-          val getbisectorInfo = pregetbisectorInfoRepart.collect()
-          val nextBisectorName = getbisectorInfo(0).getString(0)
+          val pregetbisectorInfoRepart = pregetbisectorInfo
+          val getbisectorInfo = pregetbisectorInfoRepart.as[Segment].collect().to[ListBuffer]
+          val nextBisectorName = getbisectorInfo(0).bisector
 
 
           //QUERY KE TABEL BISECTOR BWT DAPET INFO POINTNYA
-          val pregetPointInfo = sqlContext.sql("select point1, point2 from bisector where nama='"+nextBisectorName+"'")
-          val pregetPointInfoRepart = pregetPointInfo.repartition(number_of_partitions)
-          val getPointInfo = pregetPointInfoRepart.collect()
+          val pregetPointInfoRepart = sqlContext.sql("select * from bisector where nama='"+nextBisectorName+"'")
+//          val pregetPointInfoRepart = pregetPointInfo
+          val getPointInfo = pregetPointInfoRepart.as[Bisector].collect().to[ListBuffer]
 
 
 
-          val thePoint1 = getPointInfo(0).getString(0)
-          val thePoint2 = getPointInfo(0).getString(1)
+          val thePoint1 = getPointInfo(0).point1
+          val thePoint2 = getPointInfo(0).point2
 
           val labelbaru = swapLabel(getPrevLabel, thePoint1, thePoint2)
           val labelling2baru = Labelling2(nextRegionName, labelbaru)
@@ -611,18 +802,18 @@ class Algorithm {
       for(rg <- regionName){
         val pregetCandRegion = sqlContext.sql("select * from region where nama='"+rg+"' and tipe = 'BIS' and usage = 0")
         val pregetCandRegionRepart = pregetCandRegion.repartition(number_of_partitions)
-        val getCandRegion = pregetCandRegionRepart.collect()
+        val getCandRegion = pregetCandRegionRepart.as[Region].collect().to[ListBuffer]
 
         for(anyReg <- getCandRegion){
-          val candReg = Region(anyReg.getString(0), anyReg.getDecimal(1),anyReg.getDecimal(2),anyReg.getDecimal(3),
-            anyReg.getDecimal(4), anyReg.getString(5), anyReg.getInt(6))
-          processingRegion += candReg
+//          val candReg = Region(anyReg.getString(0), anyReg.getDecimal(1),anyReg.getDecimal(2),anyReg.getDecimal(3),
+//            anyReg.getDecimal(4), anyReg.getString(5), anyReg.getInt(6))
+          processingRegion += anyReg
         }
       }
       regionName.clear()
 
-      val labelValidate = sqlContext.sql("select * from region where tipe = 'BIS' and usage = 0").collect()
-      if(labelValidate.isEmpty){
+      val labelValidate = sqlContext.sql("select * from region where tipe = 'BIS' and usage = 0").count()
+      if(labelValidate == 0) {
         isSisaLabel = true
       }
 
@@ -634,8 +825,12 @@ class Algorithm {
     println("durasi labelling : "+duration)
     println("===========================================================================================")
 
+    sqlContext.uncacheTable("segment")
+    sqlContext.uncacheTable("bisector")
     labelListBuffer.toList
   }
+
+
 
   def calculateCentroid(regList : List[Region]): Point ={
     var centroidX = BigDecimal(0.0)
@@ -679,6 +874,24 @@ class Algorithm {
     bufferLabel(indexP2) = p1
 
     bufferLabel.toList
+  }
+
+  def getLabel(centroid : Point, pointList : List[Point]) : Labelling2 = {
+    var distanceListBuffer = new ListBuffer[(String, Double)]()
+    var labelComplete = new ListBuffer[String]()
+    for(p <- pointList){
+      val distance = Math.sqrt(Math.pow((centroid.kordinatX - p.kordinatX).toDouble, 2) + Math.pow((centroid.kordinatY - p.kordinatY).toDouble, 2))
+      val tupleDis = (p.nama, distance)
+      distanceListBuffer += tupleDis
+    }
+
+    val sortedTuple = distanceListBuffer.sortBy(_._2)
+
+    for(s <- sortedTuple){
+      labelComplete += s._1
+    }
+
+    Labelling2(centroid.nama, labelComplete.toList)
   }
 
 

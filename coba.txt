@@ -1,0 +1,5 @@
+name,column_x,column_y
+
+p1,3,4
+p2,6.5,4.64
+p3,5,2
